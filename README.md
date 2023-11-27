@@ -1,2 +1,2 @@
-# Quel est ce Pokemon ? - Edition threads & réseua
+# Quel est ce Pokemon ? - Edition threads & réseau
 Second projet d'OS
