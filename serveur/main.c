@@ -6,43 +6,75 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <string.h>
+#include "../commun/commun.h"
 
 #include "imgdist.h"
 
+struct serverParams {
+    int fileDescriptor;
+    struct sockaddr_in address;
+};
+
 void ExempleSignaux(void);
 
+/*
+ * Sets up the server socket on the 5555 port through TCP
+ * @return serverParams structure containing the file descriptor and the socket address
+ */
+struct serverParams createServer() {
+    struct serverParams server;
+    server.fileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
+
+    server.address.sin_family = AF_INET;
+    server.address.sin_addr.s_addr = INADDR_ANY;
+    server.address.sin_port = htons(5555);
+
+    bind(server.fileDescriptor, (struct sockaddr *) &server.address, sizeof(server.address));
+    listen(server.fileDescriptor, 10);
+    return server;
+}
+
+void sendResponse(int socket_fd, char* message) {
+    write(socket_fd, message, strlen(message));
+}
+
+/*
+ * Take a socket file descriptor, wait for an image, and save it in the newPathFile
+ * @params int socked_fd: file descriptor of the socket used for the communication between the server and the client
+ */
+int readImage(int socket_fd, char* buffer) {
+    ssize_t imageSize = read(socket_fd, buffer, 20000);
+    FILE* file = fopen("test.bmp", "wb");
+    fwrite(buffer, imageSize, 1, file);
+    fclose(file);
+    if (imageSize >= 20000) {
+        return -1;
+    }
+    return imageSize;
+}
+
+
 int main(int argc, char* argv[]) {
-   
-   /// Exemple d'utilisation de la biliothèque img-dist ///
-   uint64_t hash1, hash2;
-   
-   // Calcule du code de hachage perceptif de l'image "img/1.bmp" et
-   // conservation de celui-ci dans hash1.
-   if (!PHash("img/1.bmp", &hash1))
-      return 1; // Échec dans le chargement de l'image (message sur stderr automatique)
-   
-   // Idem pour "img/2.bmp".
-   if (!PHash("img/2.bmp", &hash2))
-      return 1;
-   
-   // Calculer la distance entre hash1 et hash2
-   unsigned int distance = DistancePHash(hash1, hash2);
-   
-   // Afficher la distance entre les deux images (valeur de retour d'img-dist dans le projet 1
-   // quand il n'y avait pas d'erreur).
-   printf("Distance entre les images 'img/1.bmp' et 'img/2.bmp' : %d\n", distance);
-   
-   /// Fin de l'exemple d'utilisation de la biliothèque img-dist ///
-   
-   /// Exemple gestion de signaux (cf Annexe de l'énoncé & corrigé du projet 1) ///
-   
-   ExempleSignaux();
-   
-   /// ///
-   
-   
-   
-   return 0;
+    struct serverParams server = createServer();
+    while(1) {
+        size_t addrlen = sizeof(server.address);
+        int new_socket = accept(server.fileDescriptor, (struct sockaddr_in *) &server.address, &addrlen);
+        char* buffer[20000];
+        if (readImage(new_socket, buffer) < 0) {
+            sendResponse(new_socket, "Your image exceed 20Kb");
+        } else {
+            sendResponse(new_socket, "Image bien recue");
+        }
+        close(new_socket);
+    }
+    close(server.fileDescriptor);
+
+    ExempleSignaux(); // Le reste du code est issu de squelette
+    return 0;
 }
 
 static volatile sig_atomic_t signalRecu = 0;
