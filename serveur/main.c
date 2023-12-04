@@ -1,8 +1,3 @@
-/**
- * Un main avec quelques exemples pour vous aider. Vous pouvez
- * bien entendu modifier ce fichier comme bon vous semble.
- **/
-
 #include <stdio.h>
 #include <inttypes.h>
 #include <signal.h>
@@ -14,9 +9,17 @@
 
 #include "imgdist.h"
 
+/*
+ * Struture représentant notre serveur
+ */
 struct serverParams {
     int fileDescriptor;
     struct sockaddr_in address;
+};
+
+struct queryResults {
+    char* filePath;
+    unsigned int distance;
 };
 
 void ExempleSignaux(void);
@@ -38,82 +41,91 @@ struct serverParams createServer() {
     return server;
 }
 
-void sendResponse(int socket_fd, char* message) {
-    write(socket_fd, message, strlen(message));
+/*
+ * Send the result of the image id
+ * @params socket_fd: Socket between client and server
+ * @params mostSimilarImage: most similar image to the one passed
+ * @params distance: distance between the image passed and the most similar image
+ */
+void sendResults(int socket_fd, char mostSimilarImage[], int distance) {
+    char response[999];
+    sprintf(response, "Most similar image found: '%s' with a distance of %d", mostSimilarImage, distance);
+    write(socket_fd, response, 999);
 }
 
 /*
- * Take a socket file descriptor, wait for an image, and save it in the newPathFile
- * @params int socked_fd: file descriptor of the socket used for the communication between the server and the client
+ * For testing purposes, you can save an image
+ * @params buffer: Raw image
+ * @params buffersize: size of the image
+ * @params fileName: name of the file to save
+ * @returns void
  */
-int readImage(int socket_fd, char* buffer) {
-    ssize_t imageSize = read(socket_fd, buffer, 20000);
-    FILE* file = fopen("test.bmp", "wb");
-    fwrite(buffer, imageSize, 1, file);
+void saveImage(char* buffer, int buffersize, char fileName[]) {
+    FILE* file = fopen(fileName, "wb");
+    fwrite(buffer, buffersize, 1, file);
     fclose(file);
+}
+
+/*
+ * Read an image taken through a socket (max: 20Kb)
+ * @params socket_fd: file descriptor of the socket used for the communication between the server and the client
+ * @params buffer: buffer for the image
+ * @returns imageSize, -1 if the file exceed 20Kb
+ */
+int readImage(int socket_fd, char buffer[]) {
+    ssize_t imageSize = read(socket_fd, buffer, 20001);
+    if (buffer[0] == '\0') {
+        return -2;
+    }
     if (imageSize >= 20000) {
         return -1;
     }
     return imageSize;
 }
 
+/*
+ * Compare images (must be completed and threaded
+ */
+struct queryResults compareImages(char buffer[], int bufsize) {
+    uint64_t hash1, hash2;
+    char path[] = "img/3.bmp";
+    struct queryResults res;
+    PHashRaw(buffer, bufsize, &hash2);
+    PHash(path, &hash1);
+    res.distance = DistancePHash(hash1, hash2);
+    res.filePath = path;
+    return res;
+}
+
+/*
+ * Handle connection between the server and one client
+ */
+void handleConnection(int socket) {
+    int communicationStatus = 1;
+    while (communicationStatus) {
+        char buffer[20001];
+        int imageSize = readImage(socket, &buffer);
+        if (imageSize == -1) {
+            char err[] = "The image you passed exceed 20Kb";
+            write(socket, err, strlen(err));
+        } else if (imageSize == -2) {
+            communicationStatus = 0;
+        } else {
+            struct queryResults res = compareImages(buffer, imageSize);
+            sendResults(socket, res.filePath, res.distance);
+        }
+    }
+}
+
 
 int main(int argc, char* argv[]) {
     struct serverParams server = createServer();
-    while(1) {
-        size_t addrlen = sizeof(server.address);
+    size_t addrlen = sizeof(server.address);
+    while (1) {
         int new_socket = accept(server.fileDescriptor, (struct sockaddr_in *) &server.address, &addrlen);
-        char* buffer[20000];
-        if (readImage(new_socket, buffer) < 0) {
-            sendResponse(new_socket, "Your image exceed 20Kb");
-        } else {
-            sendResponse(new_socket, "Image bien recue");
-        }
+        handleConnection(new_socket);
         close(new_socket);
     }
     close(server.fileDescriptor);
-
-    ExempleSignaux(); // Le reste du code est issu de squelette
     return 0;
-}
-
-static volatile sig_atomic_t signalRecu = 0;
-void SignalHandler(int sig) {
-   signalRecu = 1;
-}
-
-void ExempleSignaux(void) {
-   /// Exemple gestion de signaux (cf Annexe de l'énoncé & corrigé du projet 1) ///
-   
-   // Forcer l'interruption des appels systèmes lors de la réception de SIGINT
-   struct sigaction action;
-   action.sa_handler = SignalHandler;
-   sigemptyset(&action.sa_mask);
-
-   if (sigaction(SIGINT, &action, NULL) < 0) {
-      perror("sigaction()");
-      return;
-   }
-   
-   
-   // Gestion idéale (court et sans risque d'accès concurrents) d'un signal
-   // (cf SignalHandler() également).
-   printf("Signal recu : %d.\n", signalRecu);
-   raise(SIGINT);
-   printf("Signal recu : %d.\n", signalRecu);
-   
-   
-   // Bloquer des signaux pour le thread courant
-   sigset_t set;
-    
-   sigemptyset(&set);        // Ensemble vide de signaux
-   sigaddset(&set, SIGINT);  // Ajouter le signal SIGINT
-   sigaddset(&set, SIGUSR1); // Ajouter le signal SIGUSR1
-    
-   if (pthread_sigmask(SIG_BLOCK, &set, NULL) != 0) {
-      perror("pthread_sigmask()");
-      return;
-   }
-   
-   /// ///
 }
