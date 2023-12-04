@@ -43,9 +43,9 @@ int main(int argc, char* argv[]) {
     int server_fd = createConnection(serverIP);
     sendFile(server_fd, "./img/36.bmp");
     catchResponse(server_fd);
-    sendFile(server_fd, "./img/69.bmp");
+    sendFile(server_fd, "./img/89.bmp");
     catchResponse(server_fd);
-    sendFile(server_fd, "./img/large.bmp");
+    sendFile(server_fd, "./large.bmp");
     catchResponse(server_fd);
     killCommunication(server_fd);
     close(server_fd);

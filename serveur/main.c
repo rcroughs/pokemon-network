@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -20,6 +21,12 @@ struct serverParams {
 struct queryResults {
     char* filePath;
     unsigned int distance;
+};
+
+struct imgArgs {
+    char* buffer;
+    int bufferSize;
+    int socket_fd;
 };
 
 void ExempleSignaux(void);
@@ -54,6 +61,29 @@ void sendResults(int socket_fd, char mostSimilarImage[], int distance) {
 }
 
 /*
+ * Compare images (must be completed)
+ */
+struct queryResults compareImages(char buffer[], int bufsize) {
+    uint64_t hash1, hash2;
+    char path[] = "img/3.bmp";
+    struct queryResults res;
+    PHashRaw(buffer, bufsize, &hash2);
+    PHash(path, &hash1);
+    res.distance = DistancePHash(hash1, hash2);
+    res.filePath = path;
+    return res;
+}
+
+
+void* threadExec(void* params) {
+    struct imgArgs* image = (struct imgArgs*) params;
+    struct queryResults result = compareImages(image->buffer, image->bufferSize);
+    sendResults(image->socket_fd, result.filePath, result.distance);
+    pthread_exit(0);
+}
+
+
+/*
  * For testing purposes, you can save an image
  * @params buffer: Raw image
  * @params buffersize: size of the image
@@ -84,20 +114,6 @@ int readImage(int socket_fd, char buffer[]) {
 }
 
 /*
- * Compare images (must be completed and threaded
- */
-struct queryResults compareImages(char buffer[], int bufsize) {
-    uint64_t hash1, hash2;
-    char path[] = "img/3.bmp";
-    struct queryResults res;
-    PHashRaw(buffer, bufsize, &hash2);
-    PHash(path, &hash1);
-    res.distance = DistancePHash(hash1, hash2);
-    res.filePath = path;
-    return res;
-}
-
-/*
  * Handle connection between the server and one client
  */
 void handleConnection(int socket) {
@@ -111,8 +127,12 @@ void handleConnection(int socket) {
         } else if (imageSize == -2) {
             communicationStatus = 0;
         } else {
-            struct queryResults res = compareImages(buffer, imageSize);
-            sendResults(socket, res.filePath, res.distance);
+            pthread_t new_thread;
+            struct imgArgs args;
+            args.buffer = &buffer;
+            args.bufferSize = imageSize;
+            args.socket_fd = socket;
+            pthread_create(&new_thread, NULL, threadExec, &args);
         }
     }
 }
