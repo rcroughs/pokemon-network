@@ -8,6 +8,7 @@
 #include <string.h>
 #include <dirent.h>
 #include "../commun/commun.h"
+#include <limits.h>
 
 #include "imgdist.h"
 
@@ -130,7 +131,7 @@ void* threadCompareImages(void* params) {
     struct CompareThreadParams* threadParams = (struct CompareThreadParams*) params;
 
     struct FileList* fileList = threadParams->fileList;
-    uint64_t* baseImage_hash = threadParams->baseHash;
+    uint64_t baseImage_hash = threadParams->baseHash;
 
     // Initialisation de la structure contenant les résultats.
     struct queryResults* result = malloc(sizeof(struct queryResults));
@@ -148,14 +149,13 @@ void* threadCompareImages(void* params) {
         // On compare la distance courrante à la meilleure jusque là
         // puis on update les données si une meilleure est trouvée ;
 
-        if (currentDist >= result->distance) {
+        if (currentDist <= result->distance) {
             result->distance = currentDist;
             free(result->filePath);
             result->filePath = strdup(fileList->fileNames[i]);
-        }   
+        }
 
     }
-
     // On retourne la structure de résultat obtenue ;
     pthread_exit(result);
 
@@ -180,7 +180,7 @@ struct queryResults compareImages(char buffer[], int bufsize) {
     res.distance = UINT_MAX;
     res.filePath = NULL;
 
-    const char* directory = "/img";  // [!] Le dossier /img DOIT se trouver dans le dossier serveur. (sinon utiliser ../)
+    const char* directory = "./img";  // [!] Le dossier /img DOIT se trouver dans le dossier serveur. (sinon utiliser ../)
     struct FileList fileList = listFiles(directory);
 
     if (fileList.count > 0) {
@@ -238,15 +238,17 @@ struct queryResults compareImages(char buffer[], int bufsize) {
         if (subResult1->distance <= subResult2->distance) {
             res.distance = subResult1->distance;
             res.filePath = subResult1->filePath;
+            free(subResult2->filePath); // free parce que ne sera plus utilisé apres
         } else {
             res.distance = subResult2->distance;
             res.filePath = subResult2->filePath;
+            free(subResult1->filePath);
         }
 
         // ... et on oublie pas de libérer l'espace alloué !
 
-        free(subResult1->filePath); free(subResult1);
-        free(subResult2->filePath); free(subResult2);  
+        free(subResult1);
+        free(subResult2);
 
         freeFileList(&fileListThread1);
         freeFileList(&fileListThread2);
@@ -263,6 +265,7 @@ void* threadExec(void* params) {
     struct imgArgs* image = (struct imgArgs*) params;
     struct queryResults result = compareImages(image->buffer, image->bufferSize);
     sendResults(image->socket_fd, result.filePath, result.distance);
+    free(result.filePath);
     pthread_exit(0);
 }
 
