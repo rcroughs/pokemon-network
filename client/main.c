@@ -7,16 +7,21 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <string.h>
-#include "../commun/commun.h"
-
 #include <pthread.h>
-
+#include <stdbool.h>
 
 void handler_singint(int signum) {
     if (signum == SIGINT) {
         pthread_exit(0);
     }
 }
+
+struct threadCatcherArgs {
+    int socket_fd;
+    int* imageSent;
+    int* imageCatched;
+    bool* eof;
+};
 
 
 int createConnection(char* ipAddress) {
@@ -54,34 +59,45 @@ void killCommunication(int socket_fd) {
     write(socket_fd, "\0", 1);
 }
 
-void* catchResponse(void* socket_fd) {
-
+void* catchResponse(void* args) {
+    struct threadCatcherArgs params = *(struct threadCatcherArgs*)args;
     char response[999];
-    int server_fd = *(int*)socket_fd;
-    while(read(server_fd, response, 999) > 0) {
-        printf("%s\n", response);
-
+    while(!*params.eof || *params.imageCatched != *params.imageSent) {
+        if (read(params.socket_fd, response, 999) > 0) {
+            printf("%s\n", response);
+            *(params.imageCatched) += 1;
+        }
     }
 }
 
 int main(int argc, char* argv[]) {
-
     char serverIP[15] = "127.0.0.1";
     if (argc == 2) {
         strncpy(serverIP, argv[1], 15);
     }
     int server_fd = createConnection(serverIP);
+    int imageSent = 0;
+    int imageCatched = 0;
+    bool eof = false;
+    struct threadCatcherArgs args = {server_fd, &imageSent, &imageSent, &eof};
     char path[1000];
     pthread_t thread;
-    pthread_create(&thread, NULL, catchResponse, (void*)(&server_fd));
+    pthread_create(&thread, NULL, catchResponse, (void*)(&args));
     while (fgets(path, sizeof(path), stdin) > 0) {
 
         int length = strlen(path);
         path[length-1] = '\0';
 
         sendFile(server_fd, path);
+        imageSent++;
         memset(path, 0, sizeof(path));
 
+    }
+    eof = true;
+    if (imageCatched == imageSent) {
+        pthread_cancel(thread);
+    } else {
+        pthread_join(thread, NULL);
     }
     killCommunication(server_fd);
     close(server_fd);

@@ -1,15 +1,13 @@
 #include <stdio.h>
-#include <inttypes.h>
-#include <signal.h>
 #include <pthread.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <string.h>
 #include <dirent.h>
-#include "../commun/commun.h"
 #include <limits.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "imgdist.h"
 
@@ -141,7 +139,7 @@ void* threadCompareImages(void* params) {
 
     // Initialisation de la structure contenant les résultats.
     struct queryResults* result = malloc(sizeof(struct queryResults));
-    result->distance = UINT_MAX;
+    result->distance = INT_MAX;
     result->filePath = NULL;
 
     for (int i = 0; i < fileList->count; i++) {
@@ -157,6 +155,7 @@ void* threadCompareImages(void* params) {
 
         if (currentDist <= result->distance) {
             result->distance = currentDist;
+            printf("%d", currentDist);
             free(result->filePath);
             result->filePath = strdup(fileList->fileNames[i]);
         }
@@ -316,7 +315,7 @@ void handleConnection(int socket) {
     int communicationStatus = 1;
     while (communicationStatus) {
         char buffer[20001];
-        int imageSize = readImage(socket, buffer);
+        int imageSize = readImage(socket, &buffer);
         if (imageSize == -1) {
             char err[] = "The image you passed exceed 20Kb";
             write(socket, err, strlen(err));
