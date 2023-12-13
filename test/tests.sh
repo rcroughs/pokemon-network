@@ -1,5 +1,7 @@
 #!/bin/bash
 
+chmod
+
 declare -i test_num=1
 declare -i test_success=0
 
