@@ -125,7 +125,7 @@ void sendResults(int socket_fd, char mostSimilarImage[], int distance) {
     if (distance == -1) {
         sprintf(response, "No similar image found (no comparison could be performed successfully).");
     } else {
-        sprintf(response, "Most similar image found: '%s' with a distance of %d", mostSimilarImage, distance);
+        sprintf(response, "Most similar image found: '%s' with a distance of %d.", mostSimilarImage, distance);
     }
     write(socket_fd, response, 999);
 }
@@ -185,7 +185,7 @@ struct queryResults compareImages(char buffer[], int bufsize) {
     res.distance = UINT_MAX;
     res.filePath = NULL;
 
-    const char* directory = "./img";  // [!] Le dossier /img DOIT se trouver dans le dossier serveur. (sinon utiliser ../)
+    const char* directory = "img";  // [!] Le dossier /img DOIT se trouver dans le dossier serveur. (sinon utiliser ../)
     struct FileList fileList = listFiles(directory);
 
     if (fileList.count > 0) {
