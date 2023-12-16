@@ -108,7 +108,11 @@ struct serverParams createServer() {
     server.address.sin_addr.s_addr = INADDR_ANY;
     server.address.sin_port = htons(5555);
 
-    bind(server.fileDescriptor, (struct sockaddr *) &server.address, sizeof(server.address));
+    if (bind(server.fileDescriptor, (struct sockaddr *) &server.address, sizeof(server.address)) < 0) {
+        perror("Bind failed");
+        close(server.fileDescriptor);
+        exit(1);
+    }
     listen(server.fileDescriptor, 10);
     return server;
 }
@@ -240,7 +244,7 @@ struct queryResults compareImages(char buffer[], int bufsize) {
             // Finalement, on compare les résultats et on utilise les données de celui qui aura trouvé
             // la plus petite distance entre l'image de base et une image donnée stockée dans .filePath
 
-            if (subResult1->distance <= subResult2->distance) {
+            if (subResult1->distance < subResult2->distance) {
                 res.distance = subResult1->distance;
                 res.filePath = subResult1->filePath;
                 free(subResult2->filePath); // free parce que ne sera plus utilisé apres
@@ -315,7 +319,7 @@ void handleConnection(int socket) {
     int communicationStatus = 1;
     while (communicationStatus) {
         char buffer[20001];
-        int imageSize = readImage(socket, &buffer);
+        int imageSize = readImage(socket, buffer);
         if (imageSize == -1) {
             char err[] = "The image you passed exceed 20Kb";
             write(socket, err, strlen(err));
@@ -324,7 +328,7 @@ void handleConnection(int socket) {
         } else {
             pthread_t new_thread;
             struct imgArgs args;
-            args.buffer = &buffer;
+            args.buffer = buffer;
             args.bufferSize = imageSize;
             args.socket_fd = socket;
             pthread_create(&new_thread, NULL, threadExec, &args);
@@ -337,7 +341,7 @@ int main(int argc, char* argv[]) {
     struct serverParams server = createServer();
     size_t addrlen = sizeof(server.address);
     while (1) {
-        int new_socket = accept(server.fileDescriptor, (struct sockaddr_in *) &server.address, &addrlen);
+        int new_socket = accept(server.fileDescriptor, (struct sockaddr*) &server.address, (socklen_t *) &addrlen);
         handleConnection(new_socket);
         close(new_socket);
     }

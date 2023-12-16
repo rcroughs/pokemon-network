@@ -34,7 +34,7 @@ int createConnection(char* ipAddress) {
 
     inet_pton(AF_INET, ipAddress, &server_addr.sin_addr);
 
-    if (connect(socket_fd, (struct sockaddr_in*) &server_addr, sizeof(server_addr)) == -1) {
+    if (connect(socket_fd, (struct sockaddr*) &server_addr, sizeof(server_addr)) == -1) {
         perror("Couldn't connect to the server");
         close(socket_fd);
         exit(1);
@@ -42,7 +42,7 @@ int createConnection(char* ipAddress) {
     return socket_fd;
 }
 
-void sendFile(int socket_fd, char* path_to_image) {
+bool sendFile(int socket_fd, char* path_to_image) {
     if (access(path_to_image, F_OK) == 0) {
         //printf("Path : %s\n\n", path_to_image);
         FILE *file = fopen(path_to_image, "rb");
@@ -50,8 +50,10 @@ void sendFile(int socket_fd, char* path_to_image) {
         size_t bytes = fread(buffer, 1, 20001, file);
         write(socket_fd, buffer, bytes);
         fclose(file);
+        return true;
     } else {
-        perror("This file does not exist");
+        printf("No similar image found (no comparison could be performed successfully).");
+        return false;
     }
 }
 
@@ -68,6 +70,7 @@ void* catchResponse(void* args) {
             *(params.imageCatched) += 1;
         }
     }
+    return NULL;
 }
 
 int main(int argc, char* argv[]) {
@@ -79,17 +82,18 @@ int main(int argc, char* argv[]) {
     int imageSent = 0;
     int imageCatched = 0;
     bool eof = false;
-    struct threadCatcherArgs args = {server_fd, &imageSent, &imageSent, &eof};
+    struct threadCatcherArgs args = {server_fd, &imageSent, &imageCatched, &eof};
     char path[1000];
     pthread_t thread;
     pthread_create(&thread, NULL, catchResponse, (void*)(&args));
-    while (fgets(path, sizeof(path), stdin) > 0) {
+    while (fgets(path, sizeof(path), stdin) != NULL) {
 
         int length = strlen(path);
         path[length-1] = '\0';
 
-        sendFile(server_fd, path);
-        imageSent++;
+        if (sendFile(server_fd, path)) {
+            imageSent++;
+        }
         memset(path, 0, sizeof(path));
 
     }
