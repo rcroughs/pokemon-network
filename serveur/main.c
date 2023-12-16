@@ -301,7 +301,7 @@ void saveImage(char* buffer, int buffersize, char fileName[]) {
  * @params buffer: buffer for the image
  * @returns imageSize, -1 if the file exceed 20Kb
  */
-int readImage(int socket_fd, char buffer[]) {
+int readImage(int socket_fd, char* buffer) {
     ssize_t imageSize = read(socket_fd, buffer, 20001);
     if (buffer[0] == '\0') {
         return -2;
@@ -315,7 +315,8 @@ int readImage(int socket_fd, char buffer[]) {
 /*
  * Handle connection between the server and one client
  */
-void handleConnection(int socket) {
+void* handleConnection(void* args) {
+    int socket = *(int *) args;
     int communicationStatus = 1;
     while (communicationStatus) {
         char buffer[20001];
@@ -334,6 +335,8 @@ void handleConnection(int socket) {
             pthread_create(&new_thread, NULL, threadExec, &args);
         }
     }
+    close(socket);
+    return NULL;
 }
 
 
@@ -342,8 +345,8 @@ int main(int argc, char* argv[]) {
     size_t addrlen = sizeof(server.address);
     while (1) {
         int new_socket = accept(server.fileDescriptor, (struct sockaddr*) &server.address, (socklen_t *) &addrlen);
-        handleConnection(new_socket);
-        close(new_socket);
+        pthread_t new_thread;
+        pthread_create(&new_thread, NULL, handleConnection, (void*) &new_socket);
     }
     close(server.fileDescriptor);
     return 0;
