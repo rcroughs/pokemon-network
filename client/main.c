@@ -11,8 +11,7 @@
 
 void sighandler(int signum) {
   if (signum == SIGINT) {
-    printf("Program interruption ; Ending process\n");
-    exit(0);
+    printf("Program interruption ; Waiting to receive all the responses to shut down the program\n");
   } else if (signum == SIGPIPE) {
     printf("Server disconnected\n");
     exit(0);
@@ -61,28 +60,25 @@ int main(int argc, char *argv[]) {
   struct threadPrinterArgs params = {response, &eof, &imagePrinted, &imageSent};
   pthread_t threadPrinter;
   pthread_create(&threadPrinter, NULL, responsePrinter, (void *)(&params));
-  while (!interrupted) {
-    if ((fgets(path, sizeof(path), stdin) != NULL && imageSent < 256)) {
+  while (!interrupted &&  fgets(path, sizeof(path), stdin) != NULL &&
+         imageSent < 256) {
 
-        if (errno == EINTR) {
-            trigger_signal(&interrupted);
-        }
-
-        int length = strlen(path);
-        path[length - 1] = '\0';
-
-        if (sendFile(server_fd, path)) {
-            imageSent++;
-            usleep(
-                    50000); // Sleep 50000 µseconds (50ms) before fetching the next image
-        }
-        memset(path, 0, sizeof(path));
+    if (errno == EINTR) {
+      trigger_signal(&interrupted);
     }
+
+    int length = strlen(path);
+    path[length - 1] = '\0';
+
+    if (sendFile(server_fd, path)) {
+      imageSent++;
+      usleep(50000); // Sleep 50000 µseconds (50ms) before fetching the next image
+    }
+    memset(path, 0, sizeof(path));
   }
   eof = true;
   if (imageSent == 256) {
-    printf("You reached the sending limit of 256 images. Restart the client to "
-           "get more...");
+    printf("You reached the sending limit of 256 images. Restart the client to get more...");
   }
   if (imageCatched == imageSent) {
     pthread_cancel(threadCatcher);

@@ -3,10 +3,18 @@
 #include "thread.h"
 
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+void signalHandler(int signum) {
+  if (signum == SIGPIPE) {
+    printf("client disconnected\n");
+    pthread_exit(0);
+  }
+}
 
 struct serverParams createServer() {
   struct serverParams server;
@@ -27,6 +35,7 @@ struct serverParams createServer() {
 }
 
 void *handleConnection(void *args) {
+  signal(SIGPIPE, signalHandler);
   int socket = *(int *)args;
   int communicationStatus = 1;
   char img_id = 0;

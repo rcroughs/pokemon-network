@@ -8,6 +8,8 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+void signalHandler(int signal);
+
 /*
  * Structure reprensenting the server parameters
  * @params fileDescriptor: file descriptor of the socket
