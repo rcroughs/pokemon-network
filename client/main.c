@@ -8,13 +8,18 @@
 #include <string.h>
 #include <unistd.h>
 
-void handler_singint(int signum) {
+void sighandler(int signum) {
   if (signum == SIGINT) {
     pthread_exit(0);
+  } else if (signum == SIGPIPE) {
+    printf("Server disconnected\n");
+    exit(0);
   }
 }
 
 int main(int argc, char *argv[]) {
+  signal(SIGINT, sighandler);
+  signal(SIGPIPE, sighandler);
   char serverIP[15] = "127.0.0.1";
   if (argc == 2) {
     strncpy(serverIP, argv[1], 15);

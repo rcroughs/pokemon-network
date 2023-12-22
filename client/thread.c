@@ -26,9 +26,6 @@ void *catchResponse(void *args) {
   return NULL;
 }
 
-/*
- * Prints the responses in the right order
- */
 void *responsePrinter(void *args) {
   struct threadPrinterArgs *params = (struct threadPrinterArgs *)args;
   while (*params->imagePrinted < 256 &&
