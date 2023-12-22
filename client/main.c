@@ -7,19 +7,39 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 void sighandler(int signum) {
   if (signum == SIGINT) {
-    pthread_exit(0);
+    printf("Program interruption ; Ending process\n");
+    exit(0);
   } else if (signum == SIGPIPE) {
     printf("Server disconnected\n");
     exit(0);
   }
 }
 
+void trigger_signal(int *interrupted) {
+    *interrupted = 1;
+}
+
 int main(int argc, char *argv[]) {
-  signal(SIGINT, sighandler);
-  signal(SIGPIPE, sighandler);
+
+  // Définition de la struct d'action
+  struct sigaction sa;
+  sa.sa_handler = sighandler;
+  sa.sa_flags = 0;
+  sigemptyset(&sa.sa_mask);
+  // Masquage des signaux
+  if (sigaction(SIGINT, &sa, NULL) == -1) {
+      perror("signal() ; Couldn't define a signal handler for SIGINT");
+  }
+  if (sigaction(SIGPIPE, &sa, NULL) == -1) {
+      perror("signal() ; Couldn't define a signal handler for SIGPIPE");
+  }
+
+  int interrupted = 0; // Passe à 1 en cas de signal pendant fgets() --> évite l'appel bloquant
+
   char serverIP[15] = "127.0.0.1";
   if (argc == 2) {
     strncpy(serverIP, argv[1], 15);
@@ -41,17 +61,23 @@ int main(int argc, char *argv[]) {
   struct threadPrinterArgs params = {response, &eof, &imagePrinted, &imageSent};
   pthread_t threadPrinter;
   pthread_create(&threadPrinter, NULL, responsePrinter, (void *)(&params));
-  while (fgets(path, sizeof(path), stdin) != NULL && imageSent < 256) {
+  while (!interrupted) {
+    if ((fgets(path, sizeof(path), stdin) != NULL && imageSent < 256)) {
 
-    int length = strlen(path);
-    path[length - 1] = '\0';
+        if (errno == EINTR) {
+            trigger_signal(&interrupted);
+        }
 
-    if (sendFile(server_fd, path)) {
-      imageSent++;
-      usleep(
-          50000); // Sleep 50000 µseconds (50ms) before fetching the next image
+        int length = strlen(path);
+        path[length - 1] = '\0';
+
+        if (sendFile(server_fd, path)) {
+            imageSent++;
+            usleep(
+                    50000); // Sleep 50000 µseconds (50ms) before fetching the next image
+        }
+        memset(path, 0, sizeof(path));
     }
-    memset(path, 0, sizeof(path));
   }
   eof = true;
   if (imageSent == 256) {
