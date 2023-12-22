@@ -1,7 +1,7 @@
 CC=gcc
 OPT=-Wall -Wextra -std=gnu11 -O2
 LIB_SERV=-L ./img-dist/ -limg-dist -lm -lpthread
-LIB_CLIENT=
+LIB_CLIENT= -lpthread
 
 # Code du serveur (img-search)
 DIR_SERV=serveur
@@ -12,8 +12,8 @@ DIR_CLIENT=client
 # Code commun au client & serveur (optionnel)
 DIR_COMMON=commun
 
-OBJS_SERV=
-OBJS_CLIENT=
+OBJS_SERV= serveur/filelist.o serveur/imageio.o serveur/server.o serveur/thread.o
+OBJS_CLIENT= client/thread.o client/network.o
 
 all: img-search pokedex-client
 
@@ -21,23 +21,18 @@ libimg-dist.a:
 	(cd img-dist ; make)
 
 img-search: libimg-dist.a $(DIR_SERV)/main.c $(OBJS_SERV)
-	$(CC) $(OPT) $(OPT) $(DIR_SERV)/main.c -o img-search $(OBJS_SERV) $(LIB_SERV)
+	$(CC) $(OPT) $(DIR_SERV)/main.c -o img-search $(OBJS_SERV) $(LIB_SERV)
 
-pokedex-client: $(DIR_CLIENT)/main.c $(OBJS_SERV)
-	$(CC) $(OPT) $(OPT) $(DIR_CLIENT)/main.c -o pokedex-client $(OBJS_CLIENT) $(LIB_CLIENT)
+pokedex-client: $(DIR_CLIENT)/main.c $(OBJS_CLIENT)
+	$(CC) $(OPT) $(DIR_CLIENT)/main.c -o pokedex-client $(OBJS_CLIENT) $(LIB_CLIENT)
 
-%.o: $(DIR_SERV)/%.c $(DIR_SERV)/%.h
-	$(CC) $(OPT) $(DBG_OPT) -c $< -o $@
-
-%.o: $(DIR_CLIENT)/%.c $(DIR_SERV)/%.h
-	$(CC) $(OPT) $(DBG_OPT) -c $< -o $@
-
-%.o: $(DIR_COMMON)/%.c (DIR_COMMON)/%.h
-	$(CC) $(OPT) $(DBG_OPT) -c $< -o $@
+%.o: %.c
+	$(CC) $(OPT) -g -c $< -o $@
 
 .PHONY: clean
 
 clean:
-	rm -f *.o
+	rm -f serveur/*.o
+	rm -f client/*.o
 	rm -f img-search
 	rm -f pokedex-client
