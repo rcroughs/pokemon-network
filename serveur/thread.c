@@ -30,7 +30,6 @@ void sendResults(int socket_fd, char mostSimilarImage[], int distance,
 }
 
 void *threadCompareImages(void *params) {
-  signal(SIGPIPE, signalHandler);
 
   struct CompareThreadParams *threadParams =
       (struct CompareThreadParams *)params;
@@ -180,7 +179,6 @@ struct queryResults findBestMatchingImage(char buffer[], int bufsize) {
 }
 
 void* launchQuery(void *args) {
-  signal(SIGPIPE, signalHandler);
   struct imgArgs image = *(struct imgArgs *)args;
   struct queryResults result = findBestMatchingImage(image.buffer, image.bufferSize);
   sendResults(image.socket_fd, result.filePath, result.distance, image.img_id);
