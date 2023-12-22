@@ -4,17 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
 
 void *catchResponse(void *args) {
   struct threadCatcherArgs *params = (struct threadCatcherArgs *)args;
   char response[999];
   int bufferLength;
-
-  sigset_t set;
-  sigaddset(&set, SIGINT);
-  sigaddset(&set, SIGPIPE);
-  pthread_sigmask(SIG_BLOCK, &set, NULL);
 
   while (!*params->eof || *params->imageCatched != *params->imageSent) {
     bufferLength = read(params->socket_fd, response, 999);
@@ -30,7 +24,6 @@ void *catchResponse(void *args) {
       *(params->imageCatched) += 1;
     }
   }
-  pthread_sigmask(SIG_UNBLOCK, &set, NULL);
   return NULL;
 }
 

@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <signal.h>
 
 int createConnection(char *ipAddress) {
   int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -25,16 +26,24 @@ int createConnection(char *ipAddress) {
 }
 
 bool sendFile(int socket_fd, char *path_to_image) {
+
+  sigset_t set;
+  sigaddset(&set, SIGINT);
+  sigaddset(&set, SIGPIPE);
+  pthread_sigmask(SIG_BLOCK, &set, NULL);
+
   if (access(path_to_image, F_OK) == 0) {
     FILE *file = fopen(path_to_image, "rb");
     char buffer[20001];
     size_t bytes = fread(buffer, 1, 20001, file);
     write(socket_fd, buffer, bytes);
     fclose(file);
+    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
     return true;
   } else {
     printf("No similar image found (no comparison could be performed "
            "successfully).");
+    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
     return false;
   }
 }
